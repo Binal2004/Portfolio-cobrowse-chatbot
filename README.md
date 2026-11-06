@@ -6,8 +6,7 @@ Built with Next.js, React, TypeScript and the Gemini API (free tier, function ca
 
 | | |
 | --- | --- |
-| **Live demo** | `<Vercel URL>` |
-| **Demo video** | `<Video URL>` |
+| **Demo video** | `https://drive.google.com/file/d/1iX4ceTwwRQUlUC9hboM931HFQ77_fLcA/view?usp=sharing` |
 | **Documentation** | [docs/GUIDE.md](docs/GUIDE.md) |
 
 ## Contents
