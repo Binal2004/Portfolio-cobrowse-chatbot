@@ -1,137 +1,155 @@
-# AI Co-Browsing Assistant for a Portfolio Website
+<div align="center">
 
-A Next.js portfolio with a chat assistant that **reads the page it lives on** and **acts on it** — scrolling,
-navigating, clicking, highlighting, focusing and filling forms — driven purely by what the visitor says.
-The AI engine is the **Gemini API (free tier)**.
+# 🧭 AI Co-Browsing Assistant
 
-> Try prompts like: *"What projects are showcased here?"*, *"Go to the projects section and highlight the most recent one"*,
-> *"Take me to the contact form and put my name as Sam"*, *"Open the blog and focus on the newest post"*.
+**A chat assistant that doesn't just answer questions about a portfolio site. It works the page *with* you.**
 
-> 📘 **Full documentation:** [docs/GUIDE.md](docs/GUIDE.md) — env variables, do/don't, how it works, testing, deployment, extending, troubleshooting.
+Ask it to scroll, open a page, highlight a project, spotlight a card, or fill in the contact form, and watch it happen.
 
-## Key ideas
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-free%20tier-4285F4?logo=googlegemini&logoColor=white)
 
-| Requirement | How it is done |
+[**Live demo**](#) · [**Demo video**](#) · [**Full guide**](docs/GUIDE.md)
+
+<!-- Replace the (#) links above, then add a GIF: ![Demo](docs/demo.gif) -->
+
+</div>
+
+---
+
+## ✨ Try it
+
+| Say this | Watch it |
 | --- | --- |
-| No hard-coded content | The model never sees `data/portfolio.ts`. Before every model call the browser serialises the **rendered DOM** into a text outline (`lib/cobrowse/snapshot.ts`). Swap the site's content or even the whole site and the assistant adapts. |
-| Tool calling | Gemini function calling. Tool schemas live in `lib/cobrowse/toolDeclarations.ts`. |
-| AI never touches the DOM | The model only returns `functionCall`s. `lib/cobrowse/executor.ts` is the single module that validates and performs them. Visual effects go through an overlay store, not the site's markup. |
-| Conversational context | The full Gemini `contents` history (including tool calls/results) is kept client-side and re-sent each turn. Snapshots are injected per request and never stored, so history stays small. |
-| Key safety | The Gemini key lives only on the server (`/api/chat`), never in the browser. |
+| *"What projects are showcased here?"* | Answers from what is actually on screen |
+| *"Which one is the most recent?"* | Remembers the conversation |
+| *"Go to the projects section and highlight the most recent one."* | Navigates, compares dates, highlights |
+| *"Focus on the Lumen Design System card."* | Spotlights it and dims the rest |
+| *"Take me to the contact form and put my name as Sam."* | Scrolls there and types it in |
+| *"Open the blog and tell me the newest post."* | Changes page and reads it |
 
-## Architecture
+## 🚀 Quick start
 
-```
- Browser                                           Server (Next.js route)            Google
- ───────                                           ──────────────────────            ──────
- ChatWidget ──user text──▶ agent.ts (loop)
-                              │  takeSnapshot()  ← snapshot.ts (DOM → outline w/ element ids)
-                              ├──{contents, snapshot}──▶ /api/chat ──▶ gemini.ts ──▶ Gemini generateContent
-                              │                                   ◀── text | functionCall(s) ◀──
-                              ◀── model content ─────────┘
-                              │  functionCall?  ──▶ executor.ts ──▶ DOM (scroll / click / fill …)
-                              │                       └─▶ overlay-store ─▶ AgentOverlay (cursor, highlight, spotlight)
-                              └─ functionResponse + fresh snapshot ─▶ next round … until the model replies with text
-```
-
-```
-app/
-  layout.tsx            Header, Footer and the ChatWidget (persists across page navigations)
-  page.tsx, blog/       The sample portfolio pages
-  api/chat/route.ts     Validates input, throttles per IP, calls Gemini
-components/
-  portfolio/            Plain semantic components (section / article / nav / form)
-  cobrowse/             ChatWidget, AgentOverlay, MessageText, cobrowse.css
-lib/
-  gemini.ts, prompt.ts  REST client (model fallback), system prompt
-  cobrowse/
-    snapshot.ts         DOM → outline; stable element ids
-    toolDeclarations.ts Tool schemas sent to Gemini
-    executor.ts         The only code that acts on the page
-    agent.ts            Client loop: model ⇄ tools
-    overlay-store.ts    State for highlight / focus / pointer effects
-scripts/mock-gemini.mjs Offline rule-based stand-in for Gemini (dev/testing only)
-```
-
-### Tools
-
-| Tool | What it does |
-| --- | --- |
-| `navigate` | Go to an internal page or `#section` (client-side routing, then scroll) |
-| `scroll_page` | Up / down one screen, or top / bottom |
-| `scroll_to_element` | Smooth-scroll an element into view |
-| `highlight_element` | Pulsing ring + optional label; several can be active |
-| `focus_section` | Zoom-style spotlight: centre a section and dim the rest |
-| `click_element` | Click buttons/links (internal links navigate; external links are *not* opened — the URL is returned) |
-| `fill_input` | Types into inputs/textareas/selects with a typing animation (password/file fields refused) |
-| `read_element` | Returns the full text of an element when the snapshot was truncated |
-| `clear_effects` | Removes highlights / spotlight (also: press <kbd>Esc</kbd>) |
-
-### Safety choices
-
-- Page text is passed to the model as clearly delimited, **untrusted data**; the system prompt tells it never to follow instructions found there.
-- The model is told not to submit forms or invent personal details; password inputs and external navigation are blocked in the executor regardless of what the model asks.
-- `/api/chat` caps body/snapshot size and applies a best-effort per-IP rate limit to protect the free-tier key.
-
-## Setup
-
-Requires Node 20+.
+Needs **Node 20+** and a free [Gemini API key](https://aistudio.google.com/apikey).
 
 ```bash
 npm install
-cp .env.example .env.local   # then put your key in .env.local
-npm run dev                  # http://localhost:3000
+cp .env.example .env.local     # Windows: copy .env.example .env.local
+# add GEMINI_API_KEY=your-key to .env.local
+npm run dev                    # http://localhost:3000
 ```
 
-### Gemini API configuration
+| Variable | Required | Default | Notes |
+| --- | :---: | --- | --- |
+| `GEMINI_API_KEY` | ✅ | none | Server-side only, never sent to the browser |
+| `GEMINI_MODEL` | | `gemini-2.5-flash` | Falls back to `gemini-2.5-flash-lite` if unavailable or rate-limited |
+| `GEMINI_API_BASE` | | Google's endpoint | For the offline mock only. **Don't set on Vercel.** |
 
-1. Create a free key in [Google AI Studio](https://aistudio.google.com/apikey).
-2. Put it in `.env.local`:
-   ```
-   GEMINI_API_KEY=your-key
-   # optional
-   GEMINI_MODEL=gemini-2.5-flash
-   ```
-3. `GEMINI_MODEL` defaults to `gemini-2.5-flash`. If a model is missing, overloaded or rate-limited for your key, the server automatically
-   falls back to `gemini-2.5-flash-lite`. Set `GEMINI_MODEL` to any function-calling-capable model that your free tier offers.
+> **No key?** Run the offline mock: `npm run mock:gemini &` then
+> `GEMINI_API_BASE=http://localhost:4010/v1beta GEMINI_API_KEY=mock npm run dev`.
+> It handles a few scripted prompts and is not a real language model.
 
-The free tier is rate-limited; if you hit it the chat shows a friendly "try again in a few seconds" message.
+## 🧠 How it works
 
-### Testing without an API key
+1. **Snapshot.** The browser turns the *rendered* page into a text outline with stable element ids.
+2. **Ask.** The outline and chat history go to `/api/chat`, which calls Gemini with a set of tools.
+3. **Act.** If Gemini returns tool calls, `executor.ts` validates and performs them on the page.
+4. **Repeat.** A fresh snapshot is taken and sent back until Gemini replies in plain text.
 
-`npm run mock:gemini` starts a tiny rule-based stand-in for Gemini on port 4010 that understands a few scripted requests
-(highlight most recent project, fill the contact name, open the blog, focus a card, scroll). It exercises the whole
-UI → API → tools → DOM path offline:
-
-```bash
-npm run mock:gemini &
-GEMINI_API_BASE=http://localhost:4010/v1beta GEMINI_API_KEY=mock npm run dev
+```
+ChatWidget → agent.ts → snapshot.ts ─┐
+                                     ├─▶ /api/chat → Gemini ─▶ text | functionCall
+executor.ts ◀── functionCall ◀───────┘
+    └─▶ DOM actions + overlay effects ─▶ fresh snapshot ─▶ next round
 ```
 
-It is **not** a language model — use a real key to evaluate conversational quality.
+### Why it's built this way
 
-## Deploy to Vercel
+- **Works on any content.** The model never sees `data/portfolio.ts`, only the rendered DOM. Change the site and the assistant adapts.
+- **The AI never touches the DOM.** It only returns tool calls. One module, `executor.ts`, validates and runs them.
+- **Context without bloat.** Full history is kept client-side. Snapshots are injected per request and never stored.
+- **Key stays private.** The Gemini key lives only in the server route.
 
-1. Push this repo to GitHub.
-2. In Vercel: **Add New → Project → Import** the repo (framework is auto-detected as Next.js).
-3. Under **Environment Variables** add `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`). Do **not** set `GEMINI_API_BASE`.
-4. Deploy. The chat and all co-browsing actions work on the public URL.
+### Tools
 
-## Using it with a different website
+| Tool | Does |
+| --- | --- |
+| `navigate` | Go to an internal page or `#section` |
+| `scroll_page` / `scroll_to_element` | Scroll by screen, to top or bottom, or to an element |
+| `highlight_element` | Pulsing ring with an optional label |
+| `focus_section` | Spotlight a section, dim the rest |
+| `click_element` | Click buttons and links (external links return the URL instead) |
+| `fill_input` | Type into fields with an animation (password and file fields refused) |
+| `read_element` | Fetch full text when the snapshot was truncated |
+| `clear_effects` | Remove highlights and spotlight (or press <kbd>Esc</kbd>) |
 
-The agent is site-agnostic. To reuse it, mount `<ChatWidget />` (it is marked `data-cobrowse-ignore` so it never reads or controls itself) in any
-Next.js/React app. Better semantics (`section`, `article`, headings, labelled form fields, descriptive link text) give the model a better outline.
+## 🔒 Safety
 
-## Demo script (2–5 min video)
+- Page text is passed as **untrusted data**, and the model is told never to follow instructions found in it.
+- Password inputs and external navigation are **blocked in code**, whatever the model asks.
+- The model is told not to submit forms or invent personal details.
+- `/api/chat` caps request size and applies a per-IP rate limit to protect the free-tier key.
 
-1. *"What projects are showcased here?"* — Q&A from page content.
-2. *"Which one is the most recent?"* — follow-up using conversational context.
-3. *"Go to the projects section and highlight the most recent one."* — navigate + reasoning over dates + highlight.
-4. *"Focus on the Lumen Design System card."* — spotlight.
-5. *"Take me to the contact form and put my name as Sam, email sam@example.com."* — form filling (watch it type).
-6. *"Open the blog and tell me what's the newest post."* — page navigation + read.
-7. Point at the tool chips in the chat (`navigate`, `highlight_element`, …) to show the tool-based design.
+## ☁️ Deploy to Vercel
 
-## Scripts
+1. Push the repo to GitHub.
+2. In Vercel, **Add New → Project → Import** the repo.
+3. Add `GEMINI_API_KEY` under **Environment Variables**.
+4. Deploy.
+
+## 🔌 Use it on another site
+
+Mount `<ChatWidget />` in any Next.js or React app. It is marked `data-cobrowse-ignore`, so it never reads or controls itself. Semantic HTML (`section`, `article`, headings, labelled fields) gives the model a better outline.
+
+<details>
+<summary><b>📁 Project structure</b></summary>
+
+```
+app/
+  layout.tsx            Header, Footer and ChatWidget (persists across navigation)
+  page.tsx, blog/       Sample portfolio pages
+  api/chat/route.ts     Validates input, throttles per IP, calls Gemini
+components/
+  portfolio/            Plain semantic components
+  cobrowse/             ChatWidget, AgentOverlay, MessageText, cobrowse.css
+lib/
+  gemini.ts, prompt.ts  Gemini REST client (with fallback) and system prompt
+  cobrowse/
+    snapshot.ts         DOM → outline with stable ids
+    toolDeclarations.ts Tool schemas sent to Gemini
+    executor.ts         The only code that acts on the page
+    agent.ts            Client loop: model ⇄ tools
+    overlay-store.ts    Highlight / focus / pointer effect state
+data/portfolio.ts       Sample content (never sent to the model directly)
+scripts/mock-gemini.mjs Offline Gemini stand-in
+docs/GUIDE.md           Full documentation
+```
+
+</details>
+
+<details>
+<summary><b>⚠️ Known limits</b></summary>
+
+- The AI can be wrong. It may misjudge a date or pick the wrong element.
+- All visitors share one free-tier key, so heavy traffic will hit rate limits.
+- Rate limiting is in-memory and resets on cold starts.
+- Only the current page's rendered content is visible until it navigates elsewhere.
+- External links are reported, never opened.
+- The contact form is a demo and doesn't deliver messages.
+- Chat history lives in the browser tab and resets on refresh.
+- Page text is sent to Google with each request, so don't use this on private pages.
+
+</details>
+
+<details>
+<summary><b>🛠 Scripts</b></summary>
 
 `npm run dev` · `npm run build` · `npm start` · `npm run lint` · `npm run mock:gemini`
+
+</details>
+
+---
+
+<div align="center"><sub>Built with Next.js, React, TypeScript and the Gemini API · See <a href="docs/GUIDE.md">docs/GUIDE.md</a> for troubleshooting and how to extend it</sub></div>
